@@ -137,12 +137,6 @@ class BaseTaskNamespace(object):
         for retrieving user information and authentication.
 
         Otherwise, configure pam and nsswitch to leverage pure LDAP.
-        """
-
-        raise NotImplementedError()
-
-    def modify_pam_to_use_krb5(self, statestore):
-        """
         Configure pam stack to allow kerberos authentication.
         """
 
