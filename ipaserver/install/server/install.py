@@ -761,6 +761,11 @@ def install(installer):
 
     # Create a directory server instance
     if not options.external_cert_files:
+        # We have to sync time before generation of certificate and
+        # later ipa-server-uninstall will handle uninstallation
+        if not options.no_ntp:
+            ipaclient.install.client.sync_time(options, fstore, sstore)
+
         if options.dirsrv_cert_files:
             ds = dsinstance.DsInstance(fstore=fstore,
                                        domainlevel=options.domainlevel,
@@ -906,7 +911,7 @@ def install(installer):
     try:
         args = [paths.IPA_CLIENT_INSTALL, "--on-master", "--unattended",
                 "--domain", domain_name, "--server", host_name,
-                "--realm", realm_name, "--hostname", host_name]
+                "--realm", realm_name, "--hostname", host_name, "--no-ntp"]
         if options.no_dns_sshfp:
             args.append("--no-dns-sshfp")
         if options.ssh_trust_dns:
@@ -1081,6 +1086,8 @@ def uninstall(installer):
             run([paths.IPACTL, "stop"], raiseonerr=False)
         except Exception:
             pass
+
+    ipaclient.install.client.restore_time_sync(sstore, fstore)
 
     kra.uninstall()
 
