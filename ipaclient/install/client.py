@@ -60,7 +60,7 @@ from ipapython.ipautil import (
 )
 from ipapython.ssh import SSHPublicKey
 
-from . import automount, ipadiscovery, ntpconf, sssd
+from . import automount, ipadiscovery, timeconf, sssd
 from .ipachangeconf import IPAChangeConf
 
 NoneType = type(None)
@@ -1989,8 +1989,8 @@ def install_check(options):
 
     if options.conf_ntp and not options.force_chrony:
         try:
-            ntpconf.check_timedate_services()
-        except ntpconf.NTPConflictingService as e:
+            timeconf.check_timedate_services()
+        except timeconf.NTPConflictingService as e:
             print("WARNING: chronyd time&date synchronization service will not"
                   " be configured as")
             print("conflicting service ({}) is enabled".format(
@@ -1998,10 +1998,10 @@ def install_check(options):
             print("Use --force-chrony option to disable it and force "
                   "use of chronyd")
             print("")
-
+            # TODO decide what to do if there is conflicting service
             # configuration of chrony is disabled in this case
             options.conf_ntp = False
-        except ntpconf.NTPConfigurationError:
+        except timeconf.NTPConfigurationError:
             pass
 
     if options.unattended and (
@@ -2345,18 +2345,21 @@ def update_ipa_nssdb():
                                    (nickname, sys_db.secdir, e))
 
 
-def sync_time(options, fstore, statestore):
-    # We assume that NTP servers are discoverable through SRV records
-    # in the DNS.
-    # If that fails, we try to sync directly with IPA server,
-    # assuming it runs NTP
+def sync_time(options, fstore, statestore, force):
+    """
+    Will disable any other time synchronization service if there is
+    --force-chrony option set, and configure chrony with given ntp(chrony)
+    server and/or pool using Augeas in configure_chrony method.
+    If there is no option --ntp-server set IPADiscovery will try to find ntp
+    server in DNS records.
+    """
+    # We assume that NTP servers are discoverable through SRV records in DNS.
 
     # disable other time&date services first
-    if options.force_chrony:
-        ntpconf.force_chrony(statestore)
+    if force:
+        timeconf.force_chrony(statestore)
 
     print("Synchronizing time")
-    print("  [1/1]: Configuring chrony client")
     logger.info('Synchronizing time with KDC...')
 
     if not options.ntp_servers:
@@ -2367,27 +2370,27 @@ def sync_time(options, fstore, statestore):
         ntp_servers = options.ntp_servers
 
     if ntp_servers:
-        synced_time = ntpconf.configure_chrony(ntp_servers, options.ntp_pool,
-                                               fstore, statestore)
+        if timeconf.configure_chrony(ntp_servers, options.ntp_pool,
+                                     fstore, statestore):
+            print("Done Configuring chrony.")
+        else:
+            print("Warning: IPA Server was unable to sync time with chrony!")
+            print("         Time synchronization is required for IPA Server "
+                  "to work correctly")
+            logger.warning(
+                "Unable to sync time with chrony server, assuming the time "
+                "is in sync. Please check that 123 UDP port is opened, "
+                "and any time server is on network.")
     else:
-        synced_time = False
+        print("Warning: chrony not configured, using default configuration.")
         logger.warning("No SRV records of NTP servers found nor NTP server  "
-                       "address was privided. Skipping chrony configuration")
-
-    if not synced_time:
-        print("Warning: IPA Server was unable to sync time with chrony!")
-        print("         Time synchronization is required "
-              "for IPA Server to work correctly")
-        logger.warning(
-            "Unable to sync time with chrony server, assuming the time "
-            "is in sync. Please check that 123 UDP port is opened, "
-            "and any time server is on network.")
+                       "address was provided. Skipping chrony configuration, "
+                       "default configuration will be used")
 
 
 def restore_time_sync(statestore, fstore):
-    chrony_configured = statestore.has_state('ntp')
-    if chrony_configured:
-        chrony_enabled = statestore.restore_state('ntp', 'enabled')
+    if statestore.has_state('chrony'):  # True if chrony was configured by IPA
+        chrony_enabled = statestore.restore_state('chrony', 'enabled')
         restored = False
 
         try:
@@ -2396,7 +2399,7 @@ def restore_time_sync(statestore, fstore):
             # to this version but not unenrolled/enrolled again
             # In such case it is OK to fail
             restored = fstore.restore_file(paths.CHRONY_CONF)
-        except Exception:
+        except ValueError:  # this will not handle possivble IOError
             pass
 
         if not chrony_enabled:
@@ -2406,7 +2409,7 @@ def restore_time_sync(statestore, fstore):
             services.knownservices.chronyd.restart()
 
     try:
-        ntpconf.restore_forced_chronyd(statestore)
+        timeconf.restore_forced_timeservices(statestore)
     except CalledProcessError as e:
         logger.error('Failed to restore time synchronization service: %s', e)
 
@@ -2458,7 +2461,7 @@ def _install(options):
 
     if options.conf_ntp:
         # Attempt to sync time with NTP server (chrony).
-        sync_time(options, fstore, statestore)
+        sync_time(options, fstore, statestore, options.force_chrony)
     elif not options.on_master:
         # If we're on master skipping the time sync here because it was done
         # in ipa-server-install
@@ -3459,6 +3462,7 @@ class ClientInstallInterface(hostname_.HostNameInstallInterface,
 
     force_ntpd = knob(
         None, False,
+        deprecated=True,
         description="Stop and disable any time&date synchronization services "
                     "besides ntpd.\n"
                     "This option has been obsoleted by --force-chrony",
