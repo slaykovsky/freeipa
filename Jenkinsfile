@@ -105,8 +105,8 @@ EOF
         sh 'echo Secret123 | kinit admin && ipa ping'
         sh 'sudo cp -r /etc/ipa/* ~/.ipa/'
         sh 'echo Secret123 > ~/.ipa/.dmpw'
-        sh 'echo "wait_for_dns=5" >> ~/.ipa/default.conf'
         sh 'sudo chown -R fedora ~/.ipa'
+        sh 'echo "wait_for_dns=5" >> ~/.ipa/default.conf'
         sh 'ipa-run-tests-3 -v --junit-xml=junit.xml test_xmlrpc/'
       }
       post {
