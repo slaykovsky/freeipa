@@ -111,7 +111,7 @@ EOF
               sh 'sudo chown -R fedora ~/.ipa'
               sh 'echo "wait_for_dns=5" >> ~/.ipa/default.conf'
               sh 'which ipa-getkeytab'
-              sh 'PATH=${env.PATH} LANG=en_US.UTF-8 ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
+              sh 'LANG=en_US.UTF-8 ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
         }
           post {
               always {
