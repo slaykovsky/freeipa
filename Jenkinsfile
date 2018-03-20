@@ -102,7 +102,7 @@ EOF
               sh 'sudo dnf update -y'
               sh 'sudo dnf install -y freeipa-server freeipa-server-dns freeipa-server-trust-ad python3-ipatests'
               sh 'sudo ipa-server-install -U --domain ipa.test --realm ipa.test -p Secret123 -a Secret123 --setup-dns --setup-kra --auto-forwarders'
-              sh 'ipa-kra-install -p Secret123'
+              sh 'sudo ipa-kra-install -p Secret123'
               sh 'echo Secret123 | kinit admin && ipa ping'
               sh 'sudo cp -r /etc/ipa/* ~/.ipa/'
               sh 'echo Secret123 > ~/.ipa/.dmpw'
