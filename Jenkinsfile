@@ -93,8 +93,11 @@ EOF
       }
     }
     stage('Test') {
-      agent { label 'openstack' }
-          steps {
+        agent { label 'openstack' }
+        environment {
+          PATH = '/usr/sbin:/usr/bin:/bin:/usr/local/bin:/usr/local/sbin'
+        }  
+        steps {
               unstash name: 'repo'
               sh 'sudo hostnamectl set-hostname master.ipa.test'
               sh 'ls -lah ${WORKSPACE}/rpmbuild/RPMS/'
@@ -108,8 +111,8 @@ EOF
               sh 'sudo chown -R fedora ~/.ipa'
               sh 'echo "wait_for_dns=5" >> ~/.ipa/default.conf'
               sh 'which ipa-getkeytab'
-              sh 'LANG=en_US.UTF-8 ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
-          }
+              sh 'PATH=${env.PATH} LANG=en_US.UTF-8 ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
+        }
           post {
               always {
                   junit 'junit.xml'
