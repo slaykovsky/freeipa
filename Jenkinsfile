@@ -100,14 +100,14 @@ EOF
               sh 'ls -lah ${WORKSPACE}/rpmbuild/RPMS/'
               sh 'sudo cp -v ${WORKSPACE}/rpmbuild/RPMS/local.repo /etc/yum.repos.d/'
               sh 'sudo dnf update -y'
-              sh 'sudo dnf install -y freeipa-server freeipa-server-dns freeipa-server-trust-ad python3-ipatests'
+              sh 'sudo dnf install -y freeipa-server freeipa-server-dns freeipa-server-trust-ad freeipa-client python3-ipatests'
               sh 'sudo ipa-server-install -U --domain ipa.test --realm ipa.test -p Secret123 -a Secret123 --setup-dns --setup-kra --auto-forwarders'
               sh 'echo Secret123 | kinit admin && ipa ping'
               sh 'sudo cp -r /etc/ipa/* ~/.ipa/'
               sh 'echo Secret123 > ~/.ipa/.dmpw'
               sh 'sudo chown -R fedora ~/.ipa'
               sh 'echo "wait_for_dns=5" >> ~/.ipa/default.conf'
-              sh 'ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
+              sh 'LANG=en_US.UTF-8 ipa-run-tests-3 -v --junit-xml=junit.xml test_cmdline test_install test_ipaclient test_ipalib test_ipaplatform test_ipapython test_ipaserver test_xmlrpc'
           }
           post {
               always {
