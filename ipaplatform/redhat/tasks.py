@@ -45,7 +45,7 @@ import ipapython.errors
 
 from ipaplatform.constants import constants
 from ipaplatform.paths import paths
-from ipaplatform.redhat.authconfig import RedHatAuthConfig
+from ipaplatform.redhat.authconfig import RedHatAuthTool
 from ipaplatform.base.tasks import BaseTaskNamespace
 
 logger = logging.getLogger(__name__)
@@ -180,68 +180,36 @@ class RedHatTaskNamespace(BaseTaskNamespace):
                                              was_sssd_installed,
                                              was_sssd_configured):
 
-        auth_config = RedHatAuthConfig()
-        if statestore.has_state('authconfig'):
-            # disable only those configurations that we enabled during install
-            for conf in ('ldap', 'krb5', 'sssd', 'sssdauth', 'mkhomedir'):
-                cnf = statestore.restore_state('authconfig', conf)
-                # Do not disable sssd, as this can cause issues with its later
-                # uses. Remove it from statestore however, so that it becomes
-                # empty at the end of uninstall process.
-                if cnf and conf != 'sssd':
-                    auth_config.disable(conf)
-        else:
-            # There was no authconfig status store
-            # It means the code was upgraded after original install
-            # Fall back to old logic
-            auth_config.disable("ldap")
-            auth_config.disable("krb5")
-            if not(was_sssd_installed and was_sssd_configured):
-                # Only disable sssdauth. Disabling sssd would cause issues
-                # with its later uses.
-                auth_config.disable("sssdauth")
-            auth_config.disable("mkhomedir")
-
-        auth_config.execute()
+        auth_config = RedHatAuthTool.get_tool()
+        auth_config.unconfigure(
+            fstore, statestore, was_sssd_installed, was_sssd_configured
+        )
 
     def set_nisdomain(self, nisdomain):
-        # Let authconfig setup the permanent configuration
-        auth_config = RedHatAuthConfig()
-        auth_config.add_parameter("nisdomain", nisdomain)
-        auth_config.execute()
+        try:
+            with open(paths.SYSCONF_NETWORK, 'r') as f:
+                content = [
+                    line for line in f
+                    if not line.strip().upper().startswith('NISDOMAIN')
+                ]
+        except IOError:
+            content = []
+
+        content.append("NISDOMAIN={}\n".format(nisdomain))
+
+        with open(paths.SYSCONF_NETWORK, 'w') as f:
+            f.writelines(content)
 
     def modify_nsswitch_pam_stack(self, sssd, mkhomedir, statestore):
-        auth_config = RedHatAuthConfig()
-
-        if sssd:
-            statestore.backup_state('authconfig', 'sssd', True)
-            statestore.backup_state('authconfig', 'sssdauth', True)
-            auth_config.enable("sssd")
-            auth_config.enable("sssdauth")
-        else:
-            statestore.backup_state('authconfig', 'ldap', True)
-            auth_config.enable("ldap")
-            auth_config.enable("forcelegacy")
-
-        if mkhomedir:
-            statestore.backup_state('authconfig', 'mkhomedir', True)
-            auth_config.enable("mkhomedir")
-
-        auth_config.execute()
-
-    def modify_pam_to_use_krb5(self, statestore):
-        auth_config = RedHatAuthConfig()
-        statestore.backup_state('authconfig', 'krb5', True)
-        auth_config.enable("krb5")
-        auth_config.add_option("nostart")
-        auth_config.execute()
+        auth_config = RedHatAuthTool.get_tool()
+        auth_config.configure(sssd, mkhomedir, statestore)
 
     def backup_auth_configuration(self, path):
-        auth_config = RedHatAuthConfig()
+        auth_config = RedHatAuthTool.get_tool()
         auth_config.backup(path)
 
     def restore_auth_configuration(self, path):
-        auth_config = RedHatAuthConfig()
+        auth_config = RedHatAuthTool.get_tool()
         auth_config.restore(path)
 
     def reload_systemwide_ca_store(self):
@@ -401,7 +369,6 @@ class RedHatTaskNamespace(BaseTaskNamespace):
         filepath = paths.ETC_HOSTNAME
         if fstore.has_file(filepath):
             fstore.restore_file(filepath)
-
 
     def set_selinux_booleans(self, required_settings, backup_func=None):
         def get_setsebool_args(changes):
