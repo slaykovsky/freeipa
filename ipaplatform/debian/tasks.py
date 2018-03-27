@@ -29,11 +29,6 @@ class DebianTaskNamespace(RedHatTaskNamespace):
         return True
 
     @staticmethod
-    def modify_pam_to_use_krb5(statestore):
-        # Debian doesn't use authconfig, this is handled by pam-auth-update
-        return True
-
-    @staticmethod
     def backup_auth_configuration(path):
         # Debian doesn't use authconfig, nothing to backup
         return True

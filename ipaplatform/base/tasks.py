@@ -136,14 +136,9 @@ class BaseTaskNamespace(object):
         If sssd flag is true, configure pam and nsswtich so that SSSD is used
         for retrieving user information and authentication.
 
-        Otherwise, configure pam and nsswitch to leverage pure LDAP.
-        """
-
-        raise NotImplementedError()
-
-    def modify_pam_to_use_krb5(self, statestore):
-        """
-        Configure pam stack to allow kerberos authentication.
+        Otherwise, this method might configure pam and nsswitch to leverage
+        pure LDAP and configure pam stack to allow kerberos authentication.
+        no-sssd option is deprication and will be removed soon.
         """
 
         raise NotImplementedError()

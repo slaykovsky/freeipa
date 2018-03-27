@@ -2857,9 +2857,11 @@ def _install(options):
 
     if not options.no_ac:
         # Modify nsswitch/pam stack
-        tasks.modify_nsswitch_pam_stack(sssd=options.sssd,
-                                        mkhomedir=options.mkhomedir,
-                                        statestore=statestore)
+        tasks.modify_nsswitch_pam_stack(
+            sssd=options.sssd,
+            mkhomedir=options.mkhomedir,
+            statestore=statestore
+        )
 
         logger.info("%s enabled", "SSSD" if options.sssd else "LDAP")
 
@@ -2876,10 +2878,6 @@ def _install(options):
                 logger.warning(
                     "Failed to enable automatic startup of the SSSD daemon: "
                     "%s", e)
-
-        if not options.sssd:
-            tasks.modify_pam_to_use_krb5(statestore)
-            logger.info("Kerberos 5 enabled")
 
         # Update non-SSSD LDAP configuration after authconfig calls as it would
         # change its configuration otherways
