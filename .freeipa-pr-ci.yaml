@@ -13,7 +13,7 @@ topologies:
     memory: 6700
 
 jobs:
-  fedora-27/build:
+  fedora-rawhide/build:
     requires: []
     priority: 100
     job:
@@ -21,164 +21,164 @@ jobs:
       args:
         git_repo: '{git_repo}'
         git_refspec: '{git_refspec}'
-        template: &ci-master-f27
-          name: freeipa/ci-master-f27
-          version: 1.0.3
+        template: &ci-master-frawhide
+          name: freeipa/ci-master-frawhide
+          version: 0.0.4
         timeout: 1800
         topology: *build
 
-  fedora-27/simple_replication:
-    requires: [fedora-27/build]
+  fedora-rawhide/simple_replication:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_simple_replication.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/caless:
-    requires: [fedora-27/build]
+  fedora-rawhide/caless:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_caless.py::TestServerReplicaCALessToCAFull
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/external_ca:
-    requires: [fedora-27/build]
+  fedora-rawhide/external_ca:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_external_ca.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_topologies:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_topologies:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_topologies.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_sudo:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_sudo:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_sudo.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl_1client
 
-  fedora-27/test_kerberos_flags:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_kerberos_flags:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_kerberos_flags.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl_1client
 
-  fedora-27/test_http_kdc_proxy:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_http_kdc_proxy:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_http_kdc_proxy.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl_1client
 
-  fedora-27/test_forced_client_enrolment:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_forced_client_enrolment:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_forced_client_reenrollment.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl_1client
 
-  fedora-27/test_advise:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_advise:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_advise.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_testconfig:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_testconfig:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_testconfig.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_service_permissions:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_service_permissions:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_service_permissions.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_netgroup:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_netgroup:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_netgroup.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
 
-  fedora-27/test_vault:
-    requires: [fedora-27/build]
+  fedora-rawhide/test_vault:
+    requires: [fedora-rawhide/build]
     priority: 50
     job:
       class: RunPytest
       args:
-        build_url: '{fedora-27/build_url}'
+        build_url: '{fedora-rawhide/build_url}'
         test_suite: test_integration/test_vault.py
-        template: *ci-master-f27
+        template: *ci-master-frawhide
         timeout: 3600
         topology: *master_1repl
