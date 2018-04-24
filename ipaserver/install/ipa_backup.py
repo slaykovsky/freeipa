@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+from __future__ import absolute_import
+
 import logging
 import os
 import shutil
@@ -131,7 +133,6 @@ class Backup(admintool.AdminTool):
         paths.RESOLV_CONF,
         paths.SYSCONFIG_PKI_TOMCAT,
         paths.SYSCONFIG_DIRSRV,
-        paths.SYSCONFIG_NTPD,
         paths.SYSCONFIG_KRB5KDC_DIR,
         paths.SYSCONFIG_IPA_DNSKEYSYNCD,
         paths.SYSCONFIG_IPA_ODS_EXPORTER,
@@ -163,7 +164,7 @@ class Backup(admintool.AdminTool):
         paths.IPA_CA_CRT,
         paths.IPA_DEFAULT_CONF,
         paths.DS_KEYTAB,
-        paths.NTP_CONF,
+        paths.CHRONY_CONF,
         paths.SMB_CONF,
         paths.SAMBA_KEYTAB,
         paths.DOGTAG_ADMIN_P12,

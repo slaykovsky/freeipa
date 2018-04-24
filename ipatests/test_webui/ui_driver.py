@@ -22,7 +22,7 @@ Base class for UI integration tests.
 
 Contains browser driver and common tasks.
 """
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 from datetime import datetime
 import time
@@ -727,6 +727,20 @@ class UI_driver(object):
             else:
                 break
 
+    def close_all_dialogs(self):
+        """
+        Close all currently opened dialogs
+        """
+        self.wait()
+        while True:
+            s = ".modal.fade.in .modal-header button.close"
+            btn = self.find(s, By.CSS_SELECTOR)
+            if btn:
+                btn.click()
+                self.wait(0.5)
+            else:
+                break
+
     def get_form(self):
         """
         Get last dialog or visible facet
@@ -1034,6 +1048,15 @@ class UI_driver(object):
                    'Record was not checked: %s' % input_s
             self.wait()
 
+    def select_multiple_records(self, records):
+        """
+        Select multiple records
+        """
+
+        for data in records:
+            pkey = data['pkey']
+            self.select_record(pkey)
+
     def get_record_value(self, pkey, column, parent=None, table_name=None):
         """
         Get table column's text value
@@ -1245,10 +1268,13 @@ class UI_driver(object):
         self.wait_for_request(n=2)
 
     def add_record(self, entity, data, facet='search', facet_btn='add',
-                   dialog_btn='add', delete=False, pre_delete=True,
-                   dialog_name='add', navigate=True, combobox_input=None):
+                   dialog_btn='add', add_another_btn='add_and_add_another',
+                   delete=False, pre_delete=True, dialog_name='add',
+                   navigate=True, combobox_input=None, negative=False):
         """
         Add records.
+
+        When negative=True we are skipping final assertions.
 
         Expected data format:
         {
@@ -1259,8 +1285,15 @@ class UI_driver(object):
             ],
         }
         """
-        pkey = data['pkey']
+        if type(data) is not list:
+            data = [data]
 
+        last_element = data[len(data) - 1]
+
+        pkeys = []
+
+        for record in data:
+            pkeys.append(record['pkey'])
         if navigate:
             self.navigate_to_entity(entity, facet)
 
@@ -1268,8 +1301,9 @@ class UI_driver(object):
         self.assert_facet(entity, facet)
 
         # delete if exists, ie. from previous test fail
+
         if pre_delete:
-            self.delete_record(pkey, data.get('del'))
+            self.delete(entity, data, navigate=False)
 
         # current row count
         self.wait_for_request(0.5)
@@ -1280,37 +1314,58 @@ class UI_driver(object):
         self.facet_button_click(facet_btn)
         self.assert_dialog(dialog_name)
 
-        # fill dialog
-        self.fill_fields(data['add'], combobox_input=combobox_input)
+        for record in data:
 
-        # confirm dialog
-        self.dialog_button_click(dialog_btn)
-        self.wait_for_request()
-        self.wait_for_request()
+            # fill dialog
+            self.fill_fields(record['add'], combobox_input=combobox_input)
 
-        # check expected error/warning/info
-        expected = ['error_4304_info']
-        dialog_info = self.get_dialog_info()
-        if dialog_info and dialog_info['name'] in expected:
-            self.dialog_button_click('ok')
+            btn = dialog_btn
+
+            if record != last_element:
+                btn = add_another_btn
+
+            self.dialog_button_click(btn)
+            self.wait_for_request()
             self.wait_for_request()
 
-        # check for error
-        self.assert_no_error_dialog()
-        self.wait_for_request()
-        self.wait_for_request(0.4)
+            # check expected error/warning/info
+            expected = ['error_4304_info']
+            dialog_info = self.get_dialog_info()
+            if dialog_info and dialog_info['name'] in expected:
+                self.dialog_button_click('ok')
+                self.wait_for_request()
 
-        # check if table has more rows
+            if negative:
+                return
+
+            # check for error
+            self.assert_no_error_dialog()
+            self.wait_for_request()
+            self.wait_for_request(0.4)
+
+        if dialog_btn == 'add_and_edit':
+            page_pkey = self.get_text('.facet-pkey')
+            assert record['pkey'] in page_pkey
+            # we cannot delete because we are on different page
+            return
+        elif dialog_btn == add_another_btn:
+            # dialog is still open, we cannot check for records on search page
+            # or delete the records
+            return
+        elif dialog_btn == 'cancel':
+            return
+        # when standard 'add' was used then it will land on search page
+        # and we can check if new item was added - table has more rows
         new_count = len(self.get_rows())
         # adjust because of paging
-        expected = count + 1
+        expected = count + len(data)
         if count == 20:
             expected = 20
         self.assert_row_count(expected, new_count)
 
         # delete record
         if delete:
-            self.delete_record(pkey)
+            self.delete(entity, data, navigate=False)
             new_count = len(self.get_rows())
             self.assert_row_count(count, new_count)
 
@@ -1374,10 +1429,9 @@ class UI_driver(object):
         self.wait_for_request()
 
         # 2. Add record
-        self.add_record(parent_entity, data, facet=search_facet, navigate=False,
-                        facet_btn=add_facet_btn, dialog_name=add_dialog_name,
-                        dialog_btn=add_dialog_btn
-                        )
+        self.add_record(parent_entity, data, facet=search_facet,
+                        navigate=False, facet_btn=add_facet_btn,
+                        dialog_name=add_dialog_name, dialog_btn=add_dialog_btn)
 
         self.close_notifications()
 
@@ -1429,7 +1483,7 @@ class UI_driver(object):
 
     def prepare_associations(
             self, pkeys, facet=None, facet_btn='add', member_pkeys=None,
-            confirm_btn='add'):
+            confirm_btn='add', search=False):
         """
         Helper function for add_associations and delete_associations
         """
@@ -1440,8 +1494,18 @@ class UI_driver(object):
         self.wait()
         self.wait_for_request()
 
-        for key in pkeys:
-            self.select_record(key, table_name='available')
+        if search is True:
+            for key in pkeys:
+                search_field_s = '.adder-dialog-top input[name="filter"]'
+                self.fill_text(search_field_s, key)
+                self._button_click(selector="button[name='find'].btn-default",
+                                   parent=None)
+                self.wait_for_request()
+                self.select_record(key, table_name='available')
+                self.button_click('add')
+        else:
+            for key in pkeys:
+                self.select_record(key, table_name='available')
             self.button_click('add')
 
         self.dialog_button_click(confirm_btn)
@@ -1456,18 +1520,19 @@ class UI_driver(object):
 
     def add_associations(
             self, pkeys, facet=None, delete=False, facet_btn='add',
-            member_pkeys=None, confirm_btn='add'):
+            member_pkeys=None, confirm_btn='add', search=False):
         """
         Add associations
         """
         check_pkeys = self.prepare_associations(
-            pkeys, facet, facet_btn, member_pkeys, confirm_btn=confirm_btn)
+            pkeys, facet, facet_btn, member_pkeys, confirm_btn, search)
 
         # we need to return if we want to "cancel" to avoid assert record fail
         if confirm_btn == 'cancel':
             return
 
         for key in check_pkeys:
+
             self.assert_record(key)
             if delete:
                 self.delete_record(key)
@@ -1484,7 +1549,8 @@ class UI_driver(object):
         for key in check_pkeys:
             self.assert_record(key, negative=True)
 
-    def add_table_associations(self, table_name, pkeys, parent=False, delete=False):
+    def add_table_associations(self, table_name, pkeys, parent=False,
+                               delete=False):
         """
         Add value to table (association|rule|...)
         """
@@ -1861,12 +1927,20 @@ class UI_driver(object):
         key = pkey
         self.assert_record(key, negative=negative)
 
-    def assert_record_value(self, expected, pkey, column, parent=None, table_name=None):
+    def assert_record_value(self, expected, pkeys, column, parent=None,
+                            table_name=None):
         """
-        Assert that column's value of record defined by pkey equals expected value.
+        Assert that column's value of record defined by pkey equals expected
+        value.
         """
-        val = self.get_record_value(pkey, column, parent, table_name)
-        assert expected == val, "Invalid value: '%s'. Expected: '%s'." % (val, expected)
+
+        if type(pkeys) is not list:
+            pkeys = [pkeys]
+
+        for pkey in pkeys:
+            val = self.get_record_value(pkey, column, parent, table_name)
+            assert expected == val, ("Invalid value: '%s'. Expected: '%s'."
+                                     % (val, expected))
 
     def assert_class(self, element, cls, negative=False):
         """
@@ -1950,9 +2024,9 @@ class UI_driver(object):
             assert is_enabled == enabled, ('Invalid enabled state of action item %s. '
                                            'Expected: %s') % (action, str(visible))
 
-    def assert_field_validation_required(self, parent=None):
+    def assert_field_validation(self, expect_error, parent=None):
         """
-        Assert we got 'Required field' error message in field validation
+        Assert for error in field validation
         """
 
         if not parent:
@@ -1961,7 +2035,11 @@ class UI_driver(object):
         req_field_css = '.help-block[name="error_link"]'
 
         res = self.find(req_field_css, By.CSS_SELECTOR, context=parent)
-        assert 'Required field' in res.text, 'No "Required field" error found'
+        assert expect_error in res.text, \
+            'Expected error: {} not found'.format(expect_error)
+
+    def assert_field_validation_required(self, parent=None):
+        self.assert_field_validation('Required field', parent)
 
     def assert_notification(self, type='success', assert_text=None):
         """
@@ -1980,3 +2058,25 @@ class UI_driver(object):
         assert is_present, "Notification not present"
         if assert_text:
             assert assert_text in is_present.text
+
+    def assert_last_error_dialog(self, expected_err, details=False,
+                                 dialog_name='error_dialog'):
+        """
+        Assert error dialog body text or when details=True click on
+        'Show details' and assert text there
+        """
+
+        err_dialog = self.get_last_error_dialog(dialog_name=dialog_name)
+
+        if details:
+            # open "Show details" paragraph
+            s = 'a[title="Show details"]'
+            details = self.find(s, By.CSS_SELECTOR)
+            details.click()
+
+            s = 'ul.error-container li p'
+            self.assert_text(s, expected_err, parent=err_dialog)
+
+        else:
+            s = '.modal-body div p'
+            self.assert_text(s, expected_err, parent=err_dialog)

@@ -23,6 +23,8 @@ This base module contains default implementations of IPA interface for
 interacting with system services.
 '''
 
+from __future__ import absolute_import
+
 import os
 import json
 import time
@@ -512,6 +514,6 @@ def base_service_class_factory(name, api=None):
 service = base_service_class_factory
 knownservices = KnownServices({})
 
-# System may support more time&date services. FreeIPA supports ntpd only, other
-# services will be disabled during IPA installation
+# System may support more time&date services. FreeIPA supports chrony only.
+# Other services will be disabled during IPA installation
 timedate_services = ['ntpd', 'chronyd']
