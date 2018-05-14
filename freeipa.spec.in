@@ -234,6 +234,7 @@ BuildRequires:  python3-netaddr
 BuildRequires:  python3-pyasn1
 BuildRequires:  python3-pyasn1-modules
 BuildRequires:  python3-pyldap >= %{python3_ldap_version}
+BuildRequires:  python3-lib389
 %endif # with_lint
 
 #
