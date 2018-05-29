@@ -2,7 +2,7 @@
 # Copyright (C) 2015  FreeIPA Contributors see COPYING for license
 #
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 import errno
 import logging
@@ -31,11 +31,11 @@ from ipalib.util import (
     validate_domain_name,
     no_matching_interface_for_ip_address_warning,
 )
-import ipaclient.install.ntpconf
+import ipaclient.install.timeconf
 from ipaserver.install import (
     adtrust, bindinstance, ca, dns, dsinstance,
     httpinstance, installutils, kra, krbinstance,
-    ntpinstance, otpdinstance, custodiainstance, replication, service,
+    otpdinstance, custodiainstance, replication, service,
     sysupgrade)
 from ipaserver.install.installutils import (
     IPA_MODULES, BadHostError, get_fqdn, get_server_ip_address,
@@ -386,7 +386,7 @@ def install_check(installer):
         print("  * Configure a stand-alone CA (dogtag) for certificate "
               "management")
     if not options.no_ntp:
-        print("  * Configure the Network Time Daemon (ntpd)")
+        print("  * Configure the NTP client (chronyd)")
     print("  * Create and configure an instance of Directory Server")
     print("  * Create and configure a Kerberos Key Distribution Center (KDC)")
     print("  * Configure Apache (httpd)")
@@ -401,7 +401,7 @@ def install_check(installer):
     if options.no_ntp:
         print("")
         print("Excluded by options:")
-        print("  * Configure the Network Time Daemon (ntpd)")
+        print("  * Configure the NTP client (chronyd)")
     if installer.interactive:
         print("")
         print("To accept the default shown in brackets, press the Enter key.")
@@ -413,13 +413,13 @@ def install_check(installer):
 
     if not options.no_ntp:
         try:
-            ipaclient.install.ntpconf.check_timedate_services()
-        except ipaclient.install.ntpconf.NTPConflictingService as e:
-            print(("WARNING: conflicting time&date synchronization service '%s'"
-                  " will be disabled" % e.conflicting_service))
-            print("in favor of ntpd")
+            ipaclient.install.timeconf.check_timedate_services()
+        except ipaclient.install.timeconf.NTPConflictingService as e:
+            print("WARNING: conflicting time&date synchronization service '{}'"
+                  " will be disabled".format(e.conflicting_service))
+            print("in favor of chronyd")
             print("")
-        except ipaclient.install.ntpconf.NTPConfigurationError:
+        except ipaclient.install.timeconf.NTPConfigurationError:
             pass
 
     if not options.setup_dns and installer.interactive:
@@ -740,6 +740,7 @@ def install(installer):
     host_name = options.host_name
     ip_addresses = options.ip_addresses
     setup_ca = options.setup_ca
+    options.promote = False  # first master, no promotion
 
     # Installation has started. No IPA sysrestore items are restored in case of
     # failure to enable root cause investigation
@@ -761,12 +762,18 @@ def install(installer):
 
     # Create a directory server instance
     if not options.external_cert_files:
-        # Configure ntpd
+        # We have to sync time before certificate handling on master.
+        # As chrony configuration is moved from client here, unconfiguration of
+        # chrony will be handled here in uninstall() method as well by invoking
+        # the ipa-server-install --uninstall
         if not options.no_ntp:
-            ipaclient.install.ntpconf.force_ntpd(sstore)
-            ntp = ntpinstance.NTPInstance(fstore)
-            if not ntp.is_configured():
-                ntp.create_instance()
+            print("Synchronizing time")
+            if ipaclient.install.client.sync_time(options, fstore, sstore):
+                print("Time synchronization was successful.")
+            else:
+                print("Warning: IPA was unable to sync time with chrony!")
+                print("         Time synchronization is required for IPA "
+                      "to work correctly")
 
         if options.dirsrv_cert_files:
             ds = dsinstance.DsInstance(fstore=fstore,
@@ -793,8 +800,6 @@ def install(installer):
                                hbac_allow=not options.no_hbac_allow,
                                setup_pkinit=not options.no_pkinit)
 
-        ntpinstance.ntp_ldap_enable(host_name, ds.suffix, realm_name)
-
     else:
         api.Backend.ldap2.connect()
         ds = dsinstance.DsInstance(fstore=fstore,
@@ -817,6 +822,10 @@ def install(installer):
                       setup_pkinit=not options.no_pkinit,
                       subject_base=options.subject_base)
 
+    custodia = custodiainstance.get_custodia_instance(
+        options, custodiainstance.CustodiaModes.MASTER_PEER)
+    custodia.create_instance()
+
     if setup_ca:
         if not options.external_cert_files and options.external_ca:
             # stage 1 of external CA installation
@@ -831,7 +840,7 @@ def install(installer):
                           if n in options.__dict__}
             write_cache(cache_vars)
 
-        ca.install_step_0(False, None, options)
+        ca.install_step_0(False, None, options, custodia=custodia)
     else:
         # Put the CA cert where other instances expect it
         x509.write_certificate(http_ca_cert, paths.IPA_CA_CRT)
@@ -851,14 +860,11 @@ def install(installer):
     ds.enable_ssl()
 
     if setup_ca:
-        ca.install_step_1(False, None, options)
+        ca.install_step_1(False, None, options, custodia=custodia)
 
     otpd = otpdinstance.OtpdInstance()
     otpd.create_instance('OTPD', host_name,
                          ipautil.realm_to_suffix(realm_name))
-
-    custodia = custodiainstance.CustodiaInstance(host_name, realm_name)
-    custodia.create_instance()
 
     # Create a HTTP instance
     http = httpinstance.HTTPInstance(fstore)
@@ -891,7 +897,7 @@ def install(installer):
     krb.restart()
 
     if options.setup_kra:
-        kra.install(api, None, options)
+        kra.install(api, None, options, custodia=custodia)
 
     if options.setup_dns:
         dns.install(False, False, options)
@@ -915,7 +921,7 @@ def install(installer):
     try:
         args = [paths.IPA_CLIENT_INSTALL, "--on-master", "--unattended",
                 "--domain", domain_name, "--server", host_name,
-                "--realm", realm_name, "--hostname", host_name]
+                "--realm", realm_name, "--hostname", host_name, "--no-ntp"]
         if options.no_dns_sshfp:
             args.append("--no-dns-sshfp")
         if options.ssh_trust_dns:
@@ -963,10 +969,10 @@ def install(installer):
           "user-add)")
     print("\t   and the web user interface.")
 
-    if not services.knownservices.ntpd.is_running():
+    if not services.knownservices.chronyd.is_running():
         print("\t3. Kerberos requires time synchronization between clients")
         print("\t   and servers for correct operation. You should consider "
-              "enabling ntpd.")
+              "enabling chronyd.")
 
     print("")
     if setup_ca:
@@ -1091,7 +1097,7 @@ def uninstall(installer):
         except Exception:
             pass
 
-    ntpinstance.NTPInstance(fstore).uninstall()
+    ipaclient.install.client.restore_time_sync(sstore, fstore)
 
     kra.uninstall()
 
@@ -1104,7 +1110,9 @@ def uninstall(installer):
     dsinstance.DsInstance(fstore=fstore).uninstall()
     if _server_trust_ad_installed:
         adtrustinstance.ADTRUSTInstance(fstore).uninstall()
-    custodiainstance.CustodiaInstance().uninstall()
+    # ldap_uri isn't used, but IPAKEMKeys parses /etc/ipa/default.conf
+    # otherwise, see https://pagure.io/freeipa/issue/7474 .
+    custodiainstance.CustodiaInstance(ldap_uri='ldapi://invalid').uninstall()
     otpdinstance.OtpdInstance().uninstall()
     tasks.restore_hostname(fstore, sstore)
     fstore.restore_all_files()
@@ -1121,7 +1129,7 @@ def uninstall(installer):
 
     sstore._load()
 
-    ipaclient.install.ntpconf.restore_forced_ntpd(sstore)
+    ipaclient.install.timeconf.restore_forced_timeservices(sstore)
 
     # Clean up group_exists (unused since IPA 2.2, not being set since 4.1)
     sstore.restore_state("install", "group_exists")

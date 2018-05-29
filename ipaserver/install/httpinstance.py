@@ -43,7 +43,7 @@ from ipapython.dn import DN
 import ipapython.errors
 from ipaserver.install import sysupgrade
 from ipalib import api, x509
-from ipalib.constants import IPAAPI_USER
+from ipalib.constants import IPAAPI_USER, MOD_SSL_VERIFY_DEPTH
 from ipaplatform.constants import constants
 from ipaplatform.tasks import tasks
 from ipaplatform.paths import paths
@@ -174,6 +174,12 @@ class HTTPInstance(service.Service):
     def __configure_http(self):
         self.update_httpd_service_ipa_conf()
         self.update_httpd_wsgi_conf()
+
+        # create /etc/httpd/alias, see https://pagure.io/freeipa/issue/7529
+        session_dir = os.path.dirname(self.sub_dict['GSSAPI_SESSION_KEY'])
+        if not os.path.isdir(session_dir):
+            os.makedirs(session_dir)
+            os.chmod(session_dir, 0o755)
 
         target_fname = paths.HTTPD_IPA_CONF
         http_txt = ipautil.template_file(
@@ -412,6 +418,11 @@ class HTTPInstance(service.Service):
         installutils.set_directive(paths.HTTPD_SSL_CONF,
                                    'SSLCACertificateFile',
                                    paths.IPA_CA_CRT, False)
+        # set SSLVerifyDepth for external CA installations
+        installutils.set_directive(paths.HTTPD_SSL_CONF,
+                                   'SSLVerifyDepth',
+                                   MOD_SSL_VERIFY_DEPTH,
+                                   quotes=False)
 
     def __publish_ca_cert(self):
         ca_subject = self.cert.issuer
@@ -421,7 +432,7 @@ class HTTPInstance(service.Service):
             raise RuntimeError("HTTPD cert was issued by an unknown CA.")
         # at this time we can assume any CA cert will be valid since this is
         # only run during installation
-        x509.write_certificate(ca_certs[0], paths.CA_CRT)
+        x509.write_certificate_list(certlist, paths.CA_CRT)
 
     def is_kdcproxy_configured(self):
         """Check if KDC proxy has already been configured in the past"""

@@ -2,7 +2,7 @@
 # Copyright (C) 2015  FreeIPA Contributors see COPYING for license
 #
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 import contextlib
 import logging
@@ -23,7 +23,7 @@ from pkg_resources import parse_version
 import six
 
 from ipaclient.install.ipachangeconf import IPAChangeConf
-import ipaclient.install.ntpconf
+import ipaclient.install.timeconf
 from ipalib.install import certstore, sysrestore
 from ipalib.install.kinit import kinit_keytab
 from ipapython import ipaldap, ipautil
@@ -39,8 +39,7 @@ from ipalib.util import no_matching_interface_for_ip_address_warning
 from ipaclient.install.client import configure_krb5_conf, purge_host_keytab
 from ipaserver.install import (
     adtrust, bindinstance, ca, certs, dns, dsinstance, httpinstance,
-    installutils, kra, krbinstance,
-    ntpinstance, otpdinstance, custodiainstance, service)
+    installutils, kra, krbinstance, otpdinstance, custodiainstance, service)
 from ipaserver.install.installutils import (
     create_replica_config, ReplicaConfig, load_pkcs12, is_ipa_configured)
 from ipaserver.install.replication import (
@@ -582,12 +581,12 @@ def common_check(no_ntp):
 
     if not no_ntp:
         try:
-            ipaclient.install.ntpconf.check_timedate_services()
-        except ipaclient.install.ntpconf.NTPConflictingService as e:
+            ipaclient.install.timeconf.check_timedate_services()
+        except ipaclient.install.timeconf.NTPConflictingService as e:
             print("WARNING: conflicting time&date synchronization service "
-                  "'{svc}' will\nbe disabled in favor of ntpd\n"
+                  "'{svc}' will\nbe disabled in favor of chronyd\n"
                   .format(svc=e.conflicting_service))
-        except ipaclient.install.ntpconf.NTPConfigurationError:
+        except ipaclient.install.timeconf.NTPConfigurationError:
             pass
 
 
@@ -909,7 +908,7 @@ def install_check(installer):
 
 
 def ensure_enrolled(installer):
-    args = [paths.IPA_CLIENT_INSTALL, "--unattended", "--no-ntp"]
+    args = [paths.IPA_CLIENT_INSTALL, "--unattended"]
     stdin = None
     nolog = []
 
@@ -946,6 +945,12 @@ def ensure_enrolled(installer):
         args.append("--mkhomedir")
     if installer.force_join:
         args.append("--force-join")
+    if installer.no_ntp:
+        args.append("--no-ntp")
+    if installer.ip_addresses:
+        for ip in installer.ip_addresses:
+            # installer.ip_addresses is of type [CheckedIPAddress]
+            args.extend(("--ip-address", str(ip)))
 
     try:
         # Call client install script
@@ -1356,6 +1361,7 @@ def install(installer):
     fstore = installer._fstore
     sstore = installer._sstore
     config = installer._config
+    config.promote = installer.promote
     promote = installer.promote
     cafile = installer._ca_file
     dirsrv_pkcs12_info = installer._dirsrv_pkcs12_info
@@ -1386,11 +1392,9 @@ def install(installer):
     elif installer._update_hosts_file:
         installutils.update_hosts_file(config.ips, config.host_name, fstore)
 
-    # Configure ntpd
-    if not options.no_ntp:
-        ipaclient.install.ntpconf.force_ntpd(sstore)
-        ntp = ntpinstance.NTPInstance()
-        ntp.create_instance()
+    if not promote and not options.no_ntp:
+        # in DL1, chrony is already installed
+        ipaclient.install.timeconf.force_chrony(sstore)
 
     try:
         if promote:
@@ -1420,8 +1424,6 @@ def install(installer):
         # Always try to install DNS records
         install_dns_records(config, options, remote_api)
 
-        ntpinstance.ntp_ldap_enable(config.host_name, ds.suffix,
-                                    remote_api.env.realm)
     finally:
         if conn.isconnected():
             conn.disconnect()
@@ -1479,19 +1481,19 @@ def install(installer):
     otpd.create_instance('OTPD', config.host_name,
                          ipautil.realm_to_suffix(config.realm_name))
 
-    custodia = custodiainstance.CustodiaInstance(config.host_name,
-                                                 config.realm_name)
-    if promote:
-        custodia.create_replica(config.master_host_name)
+    if ca_enabled:
+        mode = custodiainstance.CustodiaModes.CA_PEER
     else:
-        custodia.create_instance()
+        mode = custodiainstance.CustodiaModes.MASTER_PEER
+    custodia = custodiainstance.get_custodia_instance(config, mode)
+    custodia.create_instance()
 
     if ca_enabled:
         options.realm_name = config.realm_name
         options.domain_name = config.domain_name
         options.host_name = config.host_name
         options.dm_password = config.dirman_password
-        ca.install(False, config, options)
+        ca.install(False, config, options, custodia=custodia)
 
     # configure PKINIT now that all required services are in place
     krb.enable_ssl()
@@ -1501,7 +1503,7 @@ def install(installer):
     ds.apply_updates()
 
     if kra_enabled:
-        kra.install(api, config, options)
+        kra.install(api, config, options, custodia=custodia)
 
     service.print_msg("Restarting the KDC")
     krb.restart()

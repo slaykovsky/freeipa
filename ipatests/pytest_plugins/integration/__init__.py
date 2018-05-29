@@ -19,7 +19,7 @@
 
 """Pytest plugin for IPA Integration tests"""
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 import logging
 import os
@@ -218,7 +218,11 @@ def mh(request, class_integration_logs):
     for _i in range(cls.num_ad_domains):
         domain_descriptions.append({
             'type': 'AD',
-            'hosts': {'ad': 1, 'ad_subdomain': 1, 'ad_treedomain': 1},
+            'hosts': {
+                'ad': 1,
+                'ad_subdomain': cls.num_ad_domains,
+                'ad_treedomain': cls.num_ad_domains,
+            }
         })
 
     mh = make_multihost_fixture(

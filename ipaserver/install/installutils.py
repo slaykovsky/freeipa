@@ -56,7 +56,7 @@ from ipalib.install import sysrestore
 from ipalib.install.kinit import kinit_password
 import ipaplatform
 from ipapython import ipautil, admintool, version
-from ipapython.admintool import ScriptError
+from ipapython.admintool import ScriptError, SERVER_NOT_CONFIGURED  # noqa: E402
 from ipapython.certdb import EXTERNAL_CA_TRUST_FLAGS
 from ipapython.ipaldap import DIRMAN_DN, LDAPClient
 from ipalib.util import validate_hostname
@@ -74,8 +74,7 @@ logger = logging.getLogger(__name__)
 
 # Used to determine install status
 IPA_MODULES = [
-    'httpd', 'kadmin', 'dirsrv', 'pki-tomcatd', 'install', 'krb5kdc', 'ntpd',
-    'named']
+    'httpd', 'kadmin', 'dirsrv', 'pki-tomcatd', 'install', 'krb5kdc', 'named']
 
 
 class BadHostError(Exception):
@@ -566,11 +565,15 @@ def set_directive_lines(quotes, separator, k, v, lines, comment):
         v_quoted = quote_directive_value(v, '"') if quotes else v
         new_line = ''.join([k, separator, v_quoted, '\n'])
 
+    # Special case: consider space as "white space" so tabs are allowed
+    if separator == ' ':
+        separator = '[ \t]+'
+
     found = False
     addnext = False  # add on next line, found a comment
-    matcher = re.compile(r'\s*{}'.format(re.escape(k + separator)))
-    cmatcher = re.compile(r'\s*{}\s*{}'.format(comment,
-                                               re.escape(k + separator)))
+    matcher = re.compile(r'\s*{}\s*{}'.format(re.escape(k), separator))
+    cmatcher = re.compile(r'\s*{}\s*{}\s*{}'.format(comment,
+                                                    re.escape(k), separator))
     for line in lines:
         if matcher.match(line):
             found = True
@@ -602,13 +605,20 @@ def get_directive(filename, directive, separator=' '):
 
     :returns: The (unquoted) value if the directive was found, None otherwise
     """
+    # Special case: consider space as "white space" so tabs are allowed
+    if separator == ' ':
+        separator = '[ \t]+'
+
     fd = open(filename, "r")
     for line in fd:
         if line.lstrip().startswith(directive):
             line = line.strip()
 
-            (directive, sep, value) = line.partition(separator)
-            if not sep or not value:
+            match = re.match(r'{}\s*{}\s*(.*)'.format(directive, separator),
+                             line)
+            if match:
+                value = match.group(1)
+            else:
                 raise ValueError("Malformed directive: {}".format(line))
 
             result = unquote_directive_value(value.strip(), '"')
@@ -776,6 +786,26 @@ def _ensure_nonempty_string(string, message):
         raise ValueError(message)
 
 
+def gpg_command(extra_args, password=None, workdir=None):
+    tempdir = tempfile.mkdtemp('', 'ipa-', workdir)
+    args = [
+        paths.GPG_AGENT,
+        '--batch',
+        '--homedir', tempdir,
+        '--daemon', paths.GPG2,
+        '--batch',
+        '--homedir', tempdir,
+        '--passphrase-fd', '0',
+        '--yes',
+        '--no-tty',
+    ]
+    args.extend(extra_args)
+    try:
+        ipautil.run(args, stdin=password, skip_output=True)
+    finally:
+        shutil.rmtree(tempdir, ignore_errors=True)
+
+
 # uses gpg to compress and encrypt a file
 def encrypt_file(source, dest, password, workdir=None):
     _ensure_nonempty_string(source, 'Missing Source File')
@@ -785,32 +815,11 @@ def encrypt_file(source, dest, password, workdir=None):
     _ensure_nonempty_string(dest, 'Missing Destination File')
     _ensure_nonempty_string(password, 'Missing Password')
 
-    # create a tempdir so that we can clean up with easily
-    tempdir = tempfile.mkdtemp('', 'ipa-', workdir)
-    gpgdir = os.path.join(tempdir, ".gnupg")
-
-    try:
-        try:
-            # give gpg a fake dir so that we can leater remove all
-            # the cruft when we clean up the tempdir
-            os.mkdir(gpgdir)
-            args = [paths.GPG_AGENT,
-                    '--batch',
-                    '--homedir', gpgdir,
-                    '--daemon', paths.GPG,
-                    '--batch',
-                    '--homedir', gpgdir,
-                    '--passphrase-fd', '0',
-                    '--yes',
-                    '--no-tty',
-                    '-o', dest,
-                    '-c', source]
-            ipautil.run(args, password, skip_output=True)
-        except:
-            raise
-    finally:
-        # job done, clean up
-        shutil.rmtree(tempdir, ignore_errors=True)
+    extra_args = [
+        '-o', dest,
+        '-c', source,
+    ]
+    gpg_command(extra_args, password, workdir)
 
 
 def decrypt_file(source, dest, password, workdir=None):
@@ -821,32 +830,12 @@ def decrypt_file(source, dest, password, workdir=None):
     _ensure_nonempty_string(dest, 'Missing Destination File')
     _ensure_nonempty_string(password, 'Missing Password')
 
-    # create a tempdir so that we can clean up with easily
-    tempdir = tempfile.mkdtemp('', 'ipa-', workdir)
-    gpgdir = os.path.join(tempdir, ".gnupg")
+    extra_args = [
+        '-o', dest,
+        '-d', source,
+    ]
 
-    try:
-        try:
-            # give gpg a fake dir so that we can leater remove all
-            # the cruft when we clean up the tempdir
-            os.mkdir(gpgdir)
-            args = [paths.GPG_AGENT,
-                    '--batch',
-                    '--homedir', gpgdir,
-                    '--daemon', paths.GPG,
-                    '--batch',
-                    '--homedir', gpgdir,
-                    '--passphrase-fd', '0',
-                    '--yes',
-                    '--no-tty',
-                    '-o', dest,
-                    '-d', source]
-            ipautil.run(args, password, skip_output=True)
-        except:
-            raise
-    finally:
-        # job done, clean up
-        shutil.rmtree(tempdir, ignore_errors=True)
+    gpg_command(extra_args, password, workdir)
 
 
 def expand_replica_info(filename, password):
@@ -960,7 +949,8 @@ def check_server_configuration():
     """
     server_fstore = sysrestore.FileStore(paths.SYSRESTORE)
     if not server_fstore.has_files():
-        raise RuntimeError("IPA is not configured on this system.")
+        raise ScriptError("IPA is not configured on this system.",
+                          rval=SERVER_NOT_CONFIGURED)
 
 
 def remove_file(filename):

@@ -2,6 +2,8 @@
 # Copyright (C) 2016  FreeIPA Contributors see COPYING for license
 #
 
+from __future__ import absolute_import
+
 import time
 import re
 from tempfile import NamedTemporaryFile
@@ -11,9 +13,12 @@ from ipatests.test_integration.base import IntegrationTest
 from ipatests.pytest_plugins.integration import tasks
 from ipatests.pytest_plugins.integration.tasks import (
     assert_error, replicas_cleanup)
+from ipatests.pytest_plugins.integration.env_config import get_global_config
 from ipalib.constants import (
     DOMAIN_LEVEL_0, DOMAIN_LEVEL_1, DOMAIN_SUFFIX_NAME, IPA_CA_NICKNAME)
 from ipaplatform.paths import paths
+
+config = get_global_config()
 
 
 class ReplicaPromotionBase(IntegrationTest):
@@ -404,6 +409,9 @@ class TestWrongClientDomain(IntegrationTest):
         tasks.install_master(cls.master, domain_level=cls.domain_level)
 
     def teardown_method(self, method):
+        if len(config.domains) == 0:
+            # No YAML config was set
+            return
         self.replicas[0].run_command(['ipa-client-install',
                                      '--uninstall', '-U'],
                                     raiseonerr=False)
@@ -475,6 +483,19 @@ class TestRenewalMaster(IntegrationTest):
         assert("IPA CA renewal master: %s" % replica.hostname not in result), (
             "Replica hostname found among CA renewal masters"
         )
+
+    def test_renewal_replica_with_ipa_ca_cert_manage(self):
+        """Make replica as IPA CA renewal master using
+        ipa-cacert-manage --renew"""
+        master = self.master
+        replica = self.replicas[0]
+        self.assertCARenewalMaster(master, master.hostname)
+        replica.run_command([paths.IPA_CACERT_MANAGE, 'renew'])
+        self.assertCARenewalMaster(replica, replica.hostname)
+        # set master back to ca-renewal-master
+        master.run_command([paths.IPA_CACERT_MANAGE, 'renew'])
+        self.assertCARenewalMaster(master, master.hostname)
+        self.assertCARenewalMaster(replica, master.hostname)
 
     def test_manual_renewal_master_transfer(self):
         replica = self.replicas[0]

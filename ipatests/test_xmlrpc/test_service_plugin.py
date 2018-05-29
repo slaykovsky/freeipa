@@ -31,6 +31,7 @@ from ipatests.test_xmlrpc.test_user_plugin import get_user_result, get_group_dn
 
 from ipatests.test_xmlrpc.tracker.service_plugin import ServiceTracker
 from ipatests.test_xmlrpc.tracker.host_plugin import HostTracker
+from ipatests.util import change_principal, host_keytab
 
 import base64
 from ipapython.dn import DN
@@ -46,6 +47,11 @@ service1dn = DN(('krbprincipalname',service1),('cn','services'),('cn','accounts'
 host1dn = DN(('fqdn',fqdn1),('cn','computers'),('cn','accounts'),api.env.basedn)
 host2dn = DN(('fqdn',fqdn2),('cn','computers'),('cn','accounts'),api.env.basedn)
 host3dn = DN(('fqdn',fqdn3),('cn','computers'),('cn','accounts'),api.env.basedn)
+d_service_no_realm = u'some/at.some.arbitrary.name'
+d_service = u'%s@%s' % (d_service_no_realm, api.env.realm)
+d_servicedn = DN(('krbprincipalname', d_service),
+                 ('cn', 'services'), ('cn', 'accounts'),
+                 api.env.basedn)
 
 role1 = u'Test Role'
 role1_dn = DN(('cn', role1), api.env.container_rolegroup, api.env.basedn)
@@ -86,6 +92,7 @@ class test_service(Declarative):
         ('host_del', [fqdn2], {}),
         ('host_del', [fqdn3], {}),
         ('service_del', [service1], {}),
+        ('service_del', [d_service], {}),
     ]
 
     tests = [
@@ -279,6 +286,60 @@ class test_service(Declarative):
             ),
         ),
 
+        dict(
+            desc='Allow admin to create keytab for %r' % service1,
+            command=('service_allow_create_keytab', [service1],
+                     dict(user=u'admin'),
+                     ),
+            expected=dict(
+                completed=1,
+                failed=dict(
+                    ipaallowedtoperform_write_keys=dict(
+                        group=[],
+                        host=[],
+                        hostgroup=[],
+                        user=[]
+                    )
+                ),
+                result=dict(
+                    dn=service1dn,
+                    ipaallowedtoperform_write_keys_user=[u'admin'],
+                    krbprincipalname=[service1],
+                    krbcanonicalname=[service1],
+                    managedby_host=[fqdn1],
+                ),
+            ),
+        ),
+
+        dict(
+            desc='Retrieve %r with all=True and keytab allowed' % service1,
+            command=('service_show', [service1], dict(all=True)),
+            expected=dict(
+                value=service1,
+                summary=None,
+                result=dict(
+                    dn=service1dn,
+                    ipaallowedtoperform_write_keys_user=[u'admin'],
+                    krbprincipalname=[service1],
+                    ipakrbprincipalalias=[service1],
+                    krbcanonicalname=[service1],
+                    objectclass=objectclasses.service + [
+                        u'ipaallowedoperations'
+                    ],
+                    ipauniqueid=[fuzzy_uuid],
+                    managedby_host=[fqdn1],
+                    has_keytab=False,
+                    ipakrbrequirespreauth=True,
+                    ipakrbokasdelegate=False,
+                    ipakrboktoauthasdelegate=False,
+                    krbpwdpolicyreference=[DN(
+                        u'cn=Default Service Password Policy',
+                        api.env.container_service,
+                        api.env.basedn,
+                    )],
+                ),
+            ),
+        ),
 
         dict(
             desc='Search for %r with members' % service1,
@@ -290,6 +351,7 @@ class test_service(Declarative):
                 result=[
                     dict(
                         dn=service1dn,
+                        ipaallowedtoperform_write_keys_user=[u'admin'],
                         krbprincipalname=[service1],
                         krbcanonicalname=[service1],
                         managedby_host=[fqdn1],
@@ -299,6 +361,30 @@ class test_service(Declarative):
             ),
         ),
 
+        dict(
+            desc='Disallow admin to create keytab for %r' % service1,
+            command=(
+                'service_disallow_create_keytab', [service1],
+                dict(user=u'admin'),
+            ),
+            expected=dict(
+                completed=1,
+                failed=dict(
+                    ipaallowedtoperform_write_keys=dict(
+                        group=[],
+                        host=[],
+                        hostgroup=[],
+                        user=[]
+                    )
+                ),
+                result=dict(
+                    dn=service1dn,
+                    krbprincipalname=[service1],
+                    krbcanonicalname=[service1],
+                    managedby_host=[fqdn1],
+                ),
+            ),
+        ),
 
         dict(
             desc='Search for %r' % service1,
@@ -332,7 +418,9 @@ class test_service(Declarative):
                         krbprincipalname=[service1],
                         ipakrbprincipalalias=[service1],
                         krbcanonicalname=[service1],
-                        objectclass=objectclasses.service,
+                        objectclass=objectclasses.service + [
+                            u'ipaallowedoperations'
+                        ],
                         ipauniqueid=[fuzzy_uuid],
                         has_keytab=False,
                         managedby_host=[fqdn1],
@@ -731,6 +819,23 @@ class test_service(Declarative):
         ),
 
 
+        # Create a service disconnected from any host
+        dict(
+            desc='Try to create service %r without any host' % d_service,
+            command=('service_add', [d_service_no_realm],
+                     dict(force=True, skip_host_check=True),),
+            expected=dict(
+                value=d_service,
+                summary=u'Added service "%s"' % d_service,
+                result=dict(
+                    dn=d_servicedn,
+                    krbprincipalname=[d_service],
+                    krbcanonicalname=[d_service],
+                    objectclass=objectclasses.service,
+                    ipauniqueid=[fuzzy_uuid],
+                ),
+            ),
+        ),
     ]
 
 
@@ -866,6 +971,7 @@ class test_service_allowed_to(Declarative):
     cleanup_commands = [
         ('user_del', [user1], {}),
         ('user_del', [user2], {}),
+        ('service_del', [d_service], {}),
         ('group_del', [group1], {}),
         ('group_del', [group2], {}),
         ('host_del', [fqdn1], {}),
@@ -911,6 +1017,40 @@ class test_service_allowed_to(Declarative):
                     ipauniqueid=[fuzzy_uuid],
                     gidnumber=[fuzzy_digits],
                     dn=group1_dn
+                ),
+            ),
+        ),
+        # Create a service disconnected from any host
+        dict(
+            desc='Try to create service %r without any host' % d_service,
+            command=('service_add', [d_service],
+                     dict(force=True, skip_host_check=True)),
+            expected=dict(
+                value=d_service,
+                summary=u'Added service "%s"' % d_service,
+                result=dict(
+                    dn=d_servicedn,
+                    krbprincipalname=[d_service],
+                    krbcanonicalname=[d_service],
+                    objectclass=objectclasses.service,
+                    ipauniqueid=[fuzzy_uuid],
+                ),
+            ),
+        ),
+        dict(
+            desc='Add service %r to a group: %r' % (d_service, group1),
+            command=('group_add_member', [group1],
+                     dict(service=[d_service_no_realm])),
+            expected=dict(
+                completed=1,
+                failed=dict(member=dict(group=[],
+                                        service=[],
+                                        user=[])),
+                result=dict(
+                    cn=[group1],
+                    gidnumber=[fuzzy_digits],
+                    dn=group1_dn,
+                    member_service=[d_service],
                 ),
             ),
         ),
@@ -1343,3 +1483,30 @@ class TestAuthenticationIndicators(XMLRPC_test):
             updates={u'krbprincipalauthind': u'radius'},
             expected_updates={u'krbprincipalauthind': [u'radius']}
         )
+
+
+@pytest.fixture(scope='function')
+def managing_host(request):
+    tracker = HostTracker(name=u'managinghost2', fqdn=fqdn2)
+    return tracker.make_fixture(request)
+
+
+@pytest.fixture(scope='function')
+def managed_service(request):
+    tracker = ServiceTracker(
+        name=u'managed-service', host_fqdn=fqdn2)
+    return tracker.make_fixture(request)
+
+
+@pytest.mark.tier1
+class TestManagedServices(XMLRPC_test):
+    def test_managed_service(
+            self, managing_host, managed_service):
+        """ Add a host and then add a service as a host
+            Finally, remove the service as a host """
+        managing_host.ensure_exists()
+        with host_keytab(managing_host.name) as keytab_filename:
+            with change_principal(managing_host.attrs['krbcanonicalname'][0],
+                                  keytab=keytab_filename):
+                managed_service.create()
+                managed_service.delete()

@@ -31,7 +31,7 @@ define(IPA_VERSION_RELEASE, 90)
 # e.g. define(IPA_VERSION_PRE_RELEASE, rc1)            #
 #  ->  "1.0.0rc1"                                      #
 ########################################################
-define(IPA_VERSION_PRE_RELEASE, .pre1)
+define(IPA_VERSION_PRE_RELEASE, .pre2)
 
 ########################################################
 # To mark GIT snapshots this should be set to 'yes'    #

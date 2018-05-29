@@ -74,6 +74,7 @@ class BasePathNamespace(object):
     IPA_NSSDB_PWDFILE_TXT = "/etc/ipa/nssdb/pwdfile.txt"
     COMMON_KRB5_CONF_DIR = "/etc/krb5.conf.d/"
     KRB5_CONF = "/etc/krb5.conf"
+    KRB5_FREEIPA = COMMON_KRB5_CONF_DIR + "freeipa"
     KRB5_KEYTAB = "/etc/krb5.keytab"
     LDAP_CONF = "/etc/ldap.conf"
     LIBNSS_LDAP_CONF = "/etc/libnss-ldap.conf"
@@ -88,6 +89,7 @@ class BasePathNamespace(object):
     NSLCD_CONF = "/etc/nslcd.conf"
     NSS_LDAP_CONF = "/etc/nss_ldap.conf"
     NSSWITCH_CONF = "/etc/nsswitch.conf"
+    CHRONY_CONF = "/etc/chrony.conf"
     NTP_CONF = "/etc/ntp.conf"
     NTP_STEP_TICKERS = "/etc/ntp/step-tickers"
     ETC_OPENDNSSEC_DIR = "/etc/opendnssec"
@@ -165,7 +167,8 @@ class BasePathNamespace(object):
     CHROMIUM_BROWSER = "/usr/bin/chromium-browser"
     FIREFOX = "/usr/bin/firefox"
     GETCERT = "/usr/bin/getcert"
-    GPG = "/usr/bin/gpg"
+    GPG2 = "/usr/bin/gpg2"
+    GPG_CONNECT_AGENT = "/usr/bin/gpg-connect-agent"
     GPG_AGENT = "/usr/bin/gpg-agent"
     IPA_GETCERT = "/usr/bin/ipa-getcert"
     KADMIN_LOCAL = '/usr/sbin/kadmin.local'
@@ -227,7 +230,8 @@ class BasePathNamespace(object):
     IPACTL = "/usr/sbin/ipactl"
     NAMED = "/usr/sbin/named"
     NAMED_PKCS11 = "/usr/sbin/named-pkcs11"
-    NTPD = "/usr/sbin/ntpd"
+    CHRONYC = "/usr/bin/chronyc"
+    CHRONYD = "/usr/sbin/chronyd"
     PKIDESTROY = "/usr/sbin/pkidestroy"
     PKISPAWN = "/usr/sbin/pkispawn"
     PKI = "/usr/bin/pki"
@@ -374,6 +378,8 @@ class BasePathNamespace(object):
     IF_INET6 = '/proc/net/if_inet6'
     WSGI_PREFIX_DIR = "/run/httpd/wsgi"
     AUTHCONFIG = None
+    AUTHSELECT = None
+    SYSCONF_NETWORK = None
     IPA_SERVER_UPGRADE = '/usr/sbin/ipa-server-upgrade'
     KEYCTL = '/usr/bin/keyctl'
     GETENT = '/usr/bin/getent'
