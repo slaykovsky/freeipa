@@ -137,6 +137,10 @@ BuildRequires:  gettext
 BuildRequires:  gettext-devel
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
+%if 0%{?with_python2}
+BuildRequires:  python2-devel
+BuildRequires:  python2-setuptools
+%endif
 # %{_unitdir}, %{_tmpfilesdir}
 BuildRequires:  systemd
 # systemd-tmpfiles which is executed from make install requires apache user
@@ -735,7 +739,6 @@ Provides: %{name}-tests = %{version}-%{release}
 %{?python_provide:%python_provide python2-ipatests}
 %{!?python_provide:Provides: python-ipatests = %{version}-%{release}}
 Requires: python2-ipaclient = %{version}-%{release}
-Requires: python2-ipaserver = %{version}-%{release}
 Requires: tar
 Requires: xz
 Requires: pytest >= 2.6
