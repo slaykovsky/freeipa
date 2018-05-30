@@ -823,17 +823,6 @@ export JAVA_STACK_SIZE="8m"
 export PATH=/usr/bin:/usr/sbin:$PATH
 export PYTHON=%{__python3}
 
-%if 0%{?with_python2}
-# Workaround: make sure all shebangs are pointing to Python 2
-# This should be solved properly using setuptools
-# and this hack should be removed.
-find \
-	! -name '*.pyc' -a \
-	! -name '*.pyo' -a \
-	-type f -exec grep -qsm1 '^#!.*\bpython' {} \; \
-	-exec sed -i -e '1 s|^#!.*\bpython[^ ]*|#!%{__python2}|' {} \;
-%endif # with_python2
-
 %configure --with-vendor-suffix=-%{release} \
            %{enable_server_option} \
            %{with_ipatests_option} \
@@ -845,6 +834,15 @@ find \
 %if 0%{?with_python2}
 export PYTHON=%{__python2}
 pushd %{_builddir}/freeipa-%{version}-python2
+# Workaround: make sure all shebangs are pointing to Python 2
+# This should be solved properly using setuptools
+# and this hack should be removed.
+find \
+	! -name '*.pyc' -a \
+	! -name '*.pyo' -a \
+	-type f -exec grep -qsm1 '^#!.*\bpython' {} \; \
+	-exec sed -i -e '1 s|^#!.*\bpython[^ ]*|#!%{__python2}|' {} \;
+
 %configure --with-vendor-suffix=-%{release} \
            --disable-server \
            %{with_ipatests_option} \
