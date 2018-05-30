@@ -896,19 +896,12 @@ ln -s %{_bindir}/ipa-run-tests-%{python3_version} %{buildroot}%{_bindir}/ipa-run
 ln -s %{_bindir}/ipa-test-config-%{python3_version} %{buildroot}%{_bindir}/ipa-test-config-3
 ln -s %{_bindir}/ipa-test-task-%{python3_version} %{buildroot}%{_bindir}/ipa-test-task-3
 
-# Decide which Python (2 or 3) should be used as default for tests
-%if 0%{?with_python2}
-# Building python2 only => make it default for tests
-ln -s %{_bindir}/ipa-run-tests-%{python2_version} %{buildroot}%{_bindir}/ipa-run-tests
-ln -s %{_bindir}/ipa-test-config-%{python2_version} %{buildroot}%{_bindir}/ipa-test-config
-ln -s %{_bindir}/ipa-test-task-%{python2_version} %{buildroot}%{_bindir}/ipa-test-task
-%else
-# Building with python3 => make it default for tests
+# Make Python3 to be always the default for running tests
 ln -s %{_bindir}/ipa-run-tests-%{python3_version} %{buildroot}%{_bindir}/ipa-run-tests
 ln -s %{_bindir}/ipa-test-config-%{python3_version} %{buildroot}%{_bindir}/ipa-test-config
 ln -s %{_bindir}/ipa-test-task-%{python3_version} %{buildroot}%{_bindir}/ipa-test-task
-%endif # with_python2
 %endif # with_ipatests
+
 
 # remove files which are useful only for make uninstall
 find %{buildroot} -wholename '*/site-packages/*/install_files.txt' -exec rm {} \;
