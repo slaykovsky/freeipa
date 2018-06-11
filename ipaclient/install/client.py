@@ -61,6 +61,7 @@ from ipapython.ipautil import (
     user_input,
 )
 from ipapython.ssh import SSHPublicKey
+from ipapython import version
 
 from . import automount, ipadiscovery, timeconf, sssd
 from .ipachangeconf import IPAChangeConf
@@ -667,7 +668,7 @@ def configure_krb5_conf(
     # First, write a snippet to krb5.conf.d.  Currently this doesn't support
     # templating, but that could be changed in the future.
     template = os.path.join(
-        paths.USR_SHARE_IPA_DIR,
+        paths.USR_SHARE_IPA_CLIENT_DIR,
         os.path.basename(paths.KRB5_FREEIPA) + ".template"
     )
     shutil.copy(template, paths.KRB5_FREEIPA)
@@ -2014,6 +2015,10 @@ def install_check(options):
     global cli_kdc
     global client_domain
     global cli_basedn
+
+    print("This program will set up FreeIPA client.")
+    print("Version {}".format(version.VERSION))
+    print("")
 
     cli_domain_source = 'Unknown source'
     cli_server_source = 'Unknown source'

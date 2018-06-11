@@ -24,7 +24,7 @@ jobs:
         template: &ci-master-f28
           name: freeipa/ci-master-f28
           version: 0.1.5
-        timeout: 1800
+        timeout: 3600
         topology: *build
 
   fedora-28/simple_replication:
@@ -36,7 +36,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_simple_replication.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/caless:
@@ -48,7 +48,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_caless.py::TestServerReplicaCALessToCAFull
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/external_ca:
@@ -60,7 +60,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_external_ca.py::TestExternalCA test_integration/test_external_ca.py::TestSelfExternalSelf test_integration/test_external_ca.py::TestExternalCAInstall
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
   fedora-28/test_topologies:
@@ -72,7 +72,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_topologies.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_sudo:
@@ -84,7 +84,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_sudo.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
   fedora-28/test_commands:
@@ -96,7 +96,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_commands.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_kerberos_flags:
@@ -108,7 +108,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_kerberos_flags.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
   fedora-28/test_http_kdc_proxy:
@@ -120,7 +120,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_http_kdc_proxy.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
   fedora-28/test_forced_client_enrolment:
@@ -132,7 +132,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_forced_client_reenrollment.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
   fedora-28/test_advise:
@@ -144,7 +144,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_advise.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_testconfig:
@@ -156,7 +156,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_testconfig.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_service_permissions:
@@ -168,7 +168,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_service_permissions.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_netgroup:
@@ -180,7 +180,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_netgroup.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_vault:
@@ -192,7 +192,7 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_vault.py
         template: *ci-master-f28
-        timeout: 4500
+        timeout: 400
         topology: *master_1repl
 
   fedora-28/test_authconfig:
@@ -204,6 +204,6 @@ jobs:
         build_url: '{fedora-28/build_url}'
         test_suite: test_integration/test_authselect.py
         template: *ci-master-f28
-        timeout: 3600
+        timeout: 400
         topology: *master_1repl_1client
 
